@@ -1,0 +1,258 @@
+local player = game.Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+
+local savedPosition = nil
+local xrayEnabled = false
+local transparencyAmount = 0.85
+
+------------------------------------------------
+-- FLOAT SYSTEM
+------------------------------------------------
+local floatEnabled = false
+local floatForce = nil
+
+local function enableFloat()
+	local char = player.Character
+	if not char then return end
+
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	if floatForce then
+		floatForce:Destroy()
+	end
+
+	floatForce = Instance.new("BodyVelocity")
+	floatForce.MaxForce = Vector3.new(0, math.huge, 0)
+	floatForce.Velocity = Vector3.new(0,6,0)
+	floatForce.Parent = hrp
+end
+
+local function disableFloat()
+	if floatForce then
+		floatForce:Destroy()
+		floatForce = nil
+	end
+end
+
+------------------------------------------------
+-- ANTI RAGDOLL + NO ANIMATIONS
+------------------------------------------------
+local function applyMindfluxCharacterMods(character)
+
+	local humanoid = character:WaitForChild("Humanoid")
+
+	humanoid.BreakJointsOnDeath = false
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown,false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics,false)
+
+	humanoid.StateChanged:Connect(function(_,new)
+		if new == Enum.HumanoidStateType.Ragdoll
+		or new == Enum.HumanoidStateType.FallingDown
+		or new == Enum.HumanoidStateType.Physics then
+			humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end
+	end)
+
+	local animate = character:FindFirstChild("Animate")
+	if animate then
+		animate.Disabled = true
+	end
+
+	for _,track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+		track:Stop()
+	end
+
+	if floatEnabled then
+		task.wait(1)
+		enableFloat()
+	end
+end
+
+if player.Character then
+	applyMindfluxCharacterMods(player.Character)
+end
+
+player.CharacterAdded:Connect(function(char)
+	task.wait(0.5)
+	applyMindfluxCharacterMods(char)
+end)
+
+------------------------------------------------
+-- RGB BORDER
+------------------------------------------------
+local function createRGBStroke(frame)
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 3
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = frame
+
+	local hue = 0
+	RunService.RenderStepped:Connect(function()
+		hue += 0.003
+		if hue > 1 then hue = 0 end
+		stroke.Color = Color3.fromHSV(hue,1,1)
+	end)
+end
+
+------------------------------------------------
+-- DRAG SYSTEM
+------------------------------------------------
+local function makeDraggable(frame, dragBar)
+	local dragging = false
+	local dragStart
+	local startPos
+
+	dragBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			dragStart = input.Position
+			startPos = frame.Position
+		end
+	end)
+
+	UIS.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = false
+		end
+	end)
+
+	UIS.InputChanged:Connect(function(input)
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = input.Position - dragStart
+			frame.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+end
+
+------------------------------------------------
+-- XRAY (LOCAL VISUAL)
+------------------------------------------------
+local function setXray(state)
+	for _,obj in pairs(workspace:GetDescendants()) do
+		if obj:IsA("BasePart") then
+			local model = obj:FindFirstAncestorOfClass("Model")
+			if not (model and model:FindFirstChild("Humanoid")) then
+				obj.LocalTransparencyModifier = state and transparencyAmount or 0
+			end
+		end
+	end
+end
+
+------------------------------------------------
+-- GUI SETUP
+------------------------------------------------
+local gui = Instance.new("ScreenGui")
+gui.Name = "MindfluxGUI"
+gui.Parent = player.PlayerGui
+
+local function createWindow(title, position)
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(0,300,0,260)
+	frame.Position = position
+	frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
+	frame.Parent = gui
+
+	Instance.new("UICorner",frame).CornerRadius = UDim.new(0,20)
+	createRGBStroke(frame)
+
+	local topBar = Instance.new("Frame")
+	topBar.Size = UDim2.new(1,0,0,40)
+	topBar.BackgroundTransparency = 1
+	topBar.Parent = frame
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Size = UDim2.new(1,0,1,0)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = title
+	titleLabel.TextColor3 = Color3.new(1,1,1)
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextScaled = true
+	titleLabel.Parent = topBar
+
+	makeDraggable(frame,topBar)
+
+	return frame
+end
+
+local function makeButton(text,pos,parent)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(0.8,0,0.18,0)
+	b.Position = pos
+	b.Text = text
+	b.BackgroundColor3 = Color3.fromRGB(40,40,40)
+	b.TextColor3 = Color3.new(1,1,1)
+	b.Font = Enum.Font.Gotham
+	b.TextScaled = true
+	b.Parent = parent
+	Instance.new("UICorner",b).CornerRadius = UDim.new(0,15)
+	return b
+end
+
+------------------------------------------------
+-- BOOSTER WINDOW
+------------------------------------------------
+local booster = createWindow("Mindflux Booster",UDim2.new(0.2,0,0.3,0))
+
+local boostButton = makeButton("Boost Speed",UDim2.new(0.1,0,0.3,0),booster)
+local xrayButton = makeButton("Toggle XRay",UDim2.new(0.1,0,0.52,0),booster)
+local floatButton = makeButton("Toggle Float",UDim2.new(0.1,0,0.74,0),booster)
+
+boostButton.MouseButton1Click:Connect(function()
+	local char = player.Character
+	if char and char:FindFirstChild("Humanoid") then
+		char.Humanoid.WalkSpeed = 50
+	end
+end)
+
+xrayButton.MouseButton1Click:Connect(function()
+	xrayEnabled = not xrayEnabled
+	setXray(xrayEnabled)
+end)
+
+floatButton.MouseButton1Click:Connect(function()
+	floatEnabled = not floatEnabled
+	if floatEnabled then
+		enableFloat()
+	else
+		disableFloat()
+	end
+end)
+
+------------------------------------------------
+-- TELEPORT WINDOW
+------------------------------------------------
+local teleporter = createWindow("Mindflux Teleporter",UDim2.new(0.6,0,0.3,0))
+
+local saveButton = makeButton("Save Position",UDim2.new(0.1,0,0.28,0),teleporter)
+local tpButton = makeButton("Teleport Back",UDim2.new(0.1,0,0.5,0),teleporter)
+local spawnButton = makeButton("Teleport To Base",UDim2.new(0.1,0,0.72,0),teleporter)
+
+saveButton.MouseButton1Click:Connect(function()
+	local char = player.Character
+	if char and char:FindFirstChild("HumanoidRootPart") then
+		savedPosition = char.HumanoidRootPart.Position
+	end
+end)
+
+tpButton.MouseButton1Click:Connect(function()
+	local char = player.Character
+	if savedPosition and char and char:FindFirstChild("HumanoidRootPart") then
+		char:PivotTo(CFrame.new(savedPosition))
+	end
+end)
+
+spawnButton.MouseButton1Click:Connect(function()
+	local char = player.Character
+	local spawn = workspace:FindFirstChildOfClass("SpawnLocation")
+	if char and spawn then
+		char:PivotTo(spawn.CFrame + Vector3.new(0,5,0))
+	end
+end)
