@@ -1,0 +1,130 @@
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local pGui = player:WaitForChild("PlayerGui")
+
+-- 1. Create the ScreenGui first
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MindfluxMenu"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = pGui
+
+-- 2. The Main Frame (The Menu)
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(0, 220, 0, 280)
+frame.Position = UDim2.new(0.5, -110, 0.5, -140)
+frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+frame.BackgroundTransparency = 0.3
+frame.Visible = false -- Starts hidden
+frame.Active = true -- Makes it clickable/draggable
+frame.Parent = screenGui
+
+local frameCorner = Instance.new("UICorner", frame)
+frameCorner.CornerRadius = UDim.new(0, 12)
+
+-- 3. The "M" Toggle Button
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "ToggleButton"
+toggleBtn.Size = UDim2.new(0, 45, 0, 45)
+toggleBtn.Position = UDim2.new(0, 20, 0.5, -22)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+toggleBtn.BackgroundTransparency = 0.2
+toggleBtn.Text = "M"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.SpecialElite
+toggleBtn.TextSize = 28
+toggleBtn.Parent = screenGui
+
+local btnCorner = Instance.new("UICorner", toggleBtn)
+btnCorner.CornerRadius = UDim.new(0, 10)
+
+-- 4. Functional Buttons
+local saveBtn = Instance.new("TextButton", frame)
+saveBtn.Size = UDim2.new(0.85, 0, 0, 45)
+saveBtn.Position = UDim2.new(0.075, 0, 0.2, 0)
+saveBtn.Text = "Save Position"
+saveBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+saveBtn.TextColor3 = Color3.white
+Instance.new("UICorner", saveBtn)
+
+local loadBtn = Instance.new("TextButton", frame)
+loadBtn.Size = UDim2.new(0.85, 0, 0, 45)
+loadBtn.Position = UDim2.new(0.075, 0, 0.45, 0)
+loadBtn.Text = "Go to Position"
+loadBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+loadBtn.TextColor3 = Color3.white
+Instance.new("UICorner", loadBtn)
+
+local credit = Instance.new("TextLabel", frame)
+credit.Size = UDim2.new(1, 0, 0, 30)
+credit.Position = UDim2.new(0, 0, 1, -35)
+credit.Text = "mindflux made this"
+credit.TextColor3 = Color3.fromRGB(180, 180, 180)
+credit.BackgroundTransparency = 1
+credit.Font = Enum.Font.Code
+credit.TextSize = 13
+
+--- LOGIC ---
+
+local savedCFrame = nil
+
+-- Toggle Visibility Function
+local function toggle()
+	frame.Visible = not frame.Visible
+end
+
+toggleBtn.MouseButton1Click:Connect(toggle)
+
+-- Keybind Toggle (Press 'K' to open/close)
+UserInputService.InputBegan:Connect(function(input, processed)
+	if not processed and input.KeyCode == Enum.KeyCode.K then
+		toggle()
+	end
+end)
+
+-- Draggable Logic (Simple Version)
+local dragging, dragStart, startPos
+frame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = frame.Position
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = input.Position - dragStart
+		frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = false
+	end
+end)
+
+-- Save/Load Logic
+saveBtn.MouseButton1Click:Connect(function()
+	local char = player.Character
+	if char and char:FindFirstChild("HumanoidRootPart") then
+		savedCFrame = char.HumanoidRootPart.CFrame
+		saveBtn.Text = "✓ Saved"
+		task.wait(0.5)
+		saveBtn.Text = "Save Position"
+	end
+end)
+
+loadBtn.MouseButton1Click:Connect(function()
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if root and savedCFrame then
+		local info = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		TweenService:Create(root, info, {CFrame = savedCFrame}):Play()
+	end
+end)
